@@ -1,5 +1,9 @@
-#include <mgmt_api.h>
+#include "mgmt_api.h"
+#include "mgmt.h"
 #include <sys/socket.h>
+#include <sys/uio.h>
+#include <bluetooth/hci.h>
+#include <stdlib.h>
 
 mgmt_api_ctx *mgmt_api_connect()
 {
@@ -16,7 +20,7 @@ mgmt_api_ctx *mgmt_api_connect()
         addr.hci_dev = HCI_DEV_NONE;
         addr.hci_channel = HCI_CHANNEL_CONTROL;
 
-        if (bind(fd, (struct sockaddr *) &addr, sizeof(addr)) >= 0)
+        if (bind(s, (struct sockaddr *) &addr, sizeof(addr)) >= 0)
         {
             result = (mgmt_api_ctx*)malloc(sizeof(mgmt_api_ctx));
             if (result)
@@ -77,7 +81,7 @@ void mgmt_api_set_name(mgmt_api_ctx *ctx, const char *name)
     writev(*ctx, iov, 2);
 }
 
-void mgmt_api_set_class(mgmt_api_ctx*, uint8_t major, uint8_t minor)
+void mgmt_api_set_class(mgmt_api_ctx *ctx, uint8_t major, uint8_t minor)
 {
     struct mgmt_hdr header;
     struct mgmt_cp_set_dev_class dev_class;
@@ -98,7 +102,7 @@ void mgmt_api_set_class(mgmt_api_ctx*, uint8_t major, uint8_t minor)
     writev(*ctx, iov, 2);
 }
 
-void mgmt_api_set_link_key(mgmt_api_ctx*, bdaddr_t bdaddr, uint8_t val[16])
+void mgmt_api_set_link_key(mgmt_api_ctx *ctx, bdaddr_t bdaddr, uint8_t val[16])
 {
     struct mgmt_hdr header;
     struct mgmt_cp_load_link_keys linkKeys;

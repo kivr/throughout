@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdbool.h>
 #include <bluetooth/bluetooth.h>
 
 typedef int mgmt_api_ctx;
