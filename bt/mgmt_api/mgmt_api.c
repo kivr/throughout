@@ -33,18 +33,11 @@ mgmt_api_ctx *mgmt_api_connect()
     return result;
 }
 
-bdaddr_t mgmt_api_get_controller_address()
+bdaddr_t *mgmt_api_get_controller_address()
 {
     struct mgmt_hdr header;
     struct mgmt_rp_read_info info;
-    
-    header.opcode = MGMT_OP_READ_INFO;
-    header.index = 0;
-    header.len = 0;
-    
-    write(*ctx, &header, sizeof(header));
-    
-    read(*ctx, &info, sizeof(info));
+	return NULL;    
 }
 
 void mgmt_api_set_power(mgmt_api_ctx *ctx, bool powerState)
@@ -67,7 +60,7 @@ void mgmt_api_set_power(mgmt_api_ctx *ctx, bool powerState)
     writev(*ctx, iov, 2);
 }
 
-void mgmt_api_set_connectable(mgmt_api_ctx*, bool connectable)
+void mgmt_api_set_connectable(mgmt_api_ctx *ctx, bool connectable)
 {
     struct mgmt_hdr header;
     uint8_t value;
@@ -136,8 +129,8 @@ void mgmt_api_set_class(mgmt_api_ctx *ctx, uint8_t major, uint8_t minor)
     writev(*ctx, iov, 2);
 }
 
-void mgmt_api_set_link_key(mgmt_api_ctx*, bdaddr_t *bdaddr, uint8_t val[16],
-    uint8_t key_type, uint8_t pin_length);
+void mgmt_api_set_link_key(mgmt_api_ctx *ctx, bdaddr_t *bdaddr, uint8_t val[16],
+    uint8_t key_type, uint8_t pin_length)
 {
     struct mgmt_hdr header;
     struct mgmt_cp_load_link_keys linkKeys;
