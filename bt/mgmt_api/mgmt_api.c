@@ -33,7 +33,21 @@ mgmt_api_ctx *mgmt_api_connect()
     return result;
 }
 
-void mgmt_api_power(mgmt_api_ctx *ctx, bool powerState)
+bdaddr_t mgmt_api_get_controller_address()
+{
+    struct mgmt_hdr header;
+    struct mgmt_rp_read_info info;
+    
+    header.opcode = MGMT_OP_READ_INFO;
+    header.index = 0;
+    header.len = 0;
+    
+    write(*ctx, &header, sizeof(header));
+    
+    read(*ctx, &info, sizeof(info));
+}
+
+void mgmt_api_set_power(mgmt_api_ctx *ctx, bool powerState)
 {
     struct mgmt_hdr header;
     uint8_t value;
@@ -44,6 +58,26 @@ void mgmt_api_power(mgmt_api_ctx *ctx, bool powerState)
     header.len = sizeof(value);
     
     value = powerState ? 1 : 0;
+    
+    iov[0].iov_base = &header;
+    iov[0].iov_len = sizeof(header);
+    iov[1].iov_base = &value;
+    iov[1].iov_len = sizeof(value);
+    
+    writev(*ctx, iov, 2);
+}
+
+void mgmt_api_set_connectable(mgmt_api_ctx*, bool connectable)
+{
+    struct mgmt_hdr header;
+    uint8_t value;
+    struct iovec iov[2];
+    
+    header.opcode = MGMT_OP_SET_CONNECTABLE;
+    header.index = 0;
+    header.len = sizeof(value);
+    
+    value = connectable ? 1 : 0;
     
     iov[0].iov_base = &header;
     iov[0].iov_len = sizeof(header);
@@ -102,7 +136,8 @@ void mgmt_api_set_class(mgmt_api_ctx *ctx, uint8_t major, uint8_t minor)
     writev(*ctx, iov, 2);
 }
 
-void mgmt_api_set_link_key(mgmt_api_ctx *ctx, bdaddr_t bdaddr, uint8_t val[16])
+void mgmt_api_set_link_key(mgmt_api_ctx*, bdaddr_t *bdaddr, uint8_t val[16],
+    uint8_t key_type, uint8_t pin_length);
 {
     struct mgmt_hdr header;
     struct mgmt_cp_load_link_keys linkKeys;
@@ -111,16 +146,16 @@ void mgmt_api_set_link_key(mgmt_api_ctx *ctx, bdaddr_t bdaddr, uint8_t val[16])
     
     header.opcode = MGMT_OP_LOAD_LINK_KEYS;
     header.index = 0;
-    header.len = sizeof(linkKeys) + sizeof(keyInfo);
+    header.len = sizeof(linkKeys) + sizeof(struct mgmt_link_key_info);
     
     linkKeys.debug_keys = 0;
     linkKeys.key_count = 1;
     
-    keyInfo.addr.bdaddr = bdaddr;
+    keyInfo.addr.bdaddr = *bdaddr;
     keyInfo.addr.type = 0;
-    keyInfo.type = 0;
+    keyInfo.type = key_type;
     memcpy(keyInfo.val, val, 16);
-    keyInfo.pin_len = 0;
+    keyInfo.pin_len = pin_length;
     
     iov[0].iov_base = &header;
     iov[0].iov_len = sizeof(header);
