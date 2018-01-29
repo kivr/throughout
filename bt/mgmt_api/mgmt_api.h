@@ -6,7 +6,7 @@ typedef int mgmt_api_ctx;
 
 mgmt_api_ctx *mgmt_api_connect();
 
-bdaddr_t *mgmt_api_get_controller_address();
+void mgmt_api_get_controller_address(mgmt_api_ctx*, bdaddr_t *);
 
 void mgmt_api_set_power(mgmt_api_ctx*, bool);
 

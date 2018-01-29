@@ -4,6 +4,13 @@
 #include <sys/uio.h>
 #include <bluetooth/hci.h>
 #include <stdlib.h>
+#include <unistd.h>
+
+static void emptyEventQueue(mgmt_api_ctx *ctx)
+{
+    char buffer[64];
+    while (read(*ctx, buffer, sizeof(buffer)) != -1);
+}
 
 mgmt_api_ctx *mgmt_api_connect()
 {
@@ -33,11 +40,36 @@ mgmt_api_ctx *mgmt_api_connect()
     return result;
 }
 
-bdaddr_t *mgmt_api_get_controller_address()
+void mgmt_api_get_controller_address(mgmt_api_ctx *ctx,
+		bdaddr_t *controller_address)
 {
+    //Output
     struct mgmt_hdr header;
+
+    struct iovec iov[3];
+
+    //Input
+    struct mgmt_ev_cmd_complete cmd_complete;
     struct mgmt_rp_read_info info;
-	return NULL;    
+
+    emptyEventQueue(ctx);
+
+    header.opcode = MGMT_OP_READ_INFO;
+    header.index = 0;
+    header.len = 0;
+
+    write(*ctx, &header, sizeof(header));
+
+    iov[0].iov_base = &header;
+    iov[0].iov_len = sizeof(header);
+    iov[1].iov_base = &cmd_complete;
+    iov[1].iov_len = sizeof(cmd_complete);
+    iov[2].iov_base = &info;
+    iov[2].iov_len = sizeof(info);
+
+    readv(*ctx, iov, 3);
+
+    memcpy(controller_address, &info.bdaddr, sizeof(info.bdaddr));
 }
 
 void mgmt_api_set_power(mgmt_api_ctx *ctx, bool powerState)
@@ -80,30 +112,30 @@ void mgmt_api_set_connectable(mgmt_api_ctx *ctx, bool connectable)
     writev(*ctx, iov, 2);
 }
 
-void mgmt_api_set_name(mgmt_api_ctx *ctx, const char *name)
+void mgmt_api_set_name(mgmt_api_ctx *ctx, const char *in_name)
 {
     struct mgmt_hdr header;
-    struct mgmt_cp_set_local_name localName;
+    struct mgmt_cp_set_local_name name;
     struct iovec iov[2];
-    
-    if (strlen(name) >= MGMT_MAX_SHORT_NAME_LENGTH)
+
+    if (strlen(in_name) >= MGMT_MAX_SHORT_NAME_LENGTH)
     {
         return;
     }
     
     header.opcode = MGMT_OP_SET_LOCAL_NAME;
     header.index = 0;
-    header.len = sizeof(localName);
+    header.len = sizeof(name);
     
-    memset(&localName, 0, sizeof(localName));
+    memset(&name, 0, sizeof(name));
     
-    strcpy(localName.name, name);
-    strcpy(localName.short_name, name);
+    strcpy(name.name, in_name);
+    strcpy(name.short_name, in_name);
     
     iov[0].iov_base = &header;
     iov[0].iov_len = sizeof(header);
-    iov[1].iov_base = &localName;
-    iov[1].iov_len = sizeof(localName);
+    iov[1].iov_base = &name;
+    iov[1].iov_len = sizeof(name);
     
     writev(*ctx, iov, 2);
 }
