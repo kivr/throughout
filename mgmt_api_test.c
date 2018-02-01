@@ -6,10 +6,10 @@
 #define LINK_KEY "339680868FE5E6A8E2A8A92FD013745C"
 
 #define BA_STR_LENGTH (sizeof(bdaddr_t) * 3 - 1)
-#define LINK_KEYS_PATH_PREFIX "/var/lib/bluetooth/"
+#define LINK_KEYS_PATH "/var/lib/bluetooth/%s/%s/info"
 
 static void setLinkKey(mgmt_api_ctx *ctx, const char *address, const char *key,
-		uint8_t keyType, uint8_t pinLength)
+        uint8_t keyType, uint8_t pinLength)
 {
     bdaddr_t device_address;
     uint8_t bkey[16];
@@ -29,13 +29,10 @@ void loadLinkKeys(mgmt_api_ctx *ctx, bdaddr_t *address)
 {
     DIR *d;
     struct dirent *dir;
-    char path[1024];
+    char path[128];
     char str_address[BA_STR_LENGTH];
 
     ba2str(address, str_address);
-
-    strcpy(path, LINK_KEYS_PATH_PREFIX);
-    strcat(path, str_address);
 
     d = opendir(path);
 
@@ -45,11 +42,9 @@ void loadLinkKeys(mgmt_api_ctx *ctx, bdaddr_t *address)
         {
             GError *pError = NULL;
             GKeyFile *file = g_key_file_new();
-	    char *controllerFolder;
+            char *controllerFolder;
 
-            strcat(path, "/");
-            strcat(path, dir->d_name);
-            strcat(path, "/info");
+            sprintf(path, LINK_KEYS_PATH, str_address, dir->d_name);
 
             g_key_file_load_from_file(file, path, 0, &pError);
 
@@ -57,7 +52,7 @@ void loadLinkKeys(mgmt_api_ctx *ctx, bdaddr_t *address)
             {
                 gchar *key;
                 gint keyType;
-		gint pinLength;
+                gint pinLength;
 
                 key = g_key_file_get_value(file, "LinkKey", "Key", &pError);
 
@@ -67,7 +62,7 @@ void loadLinkKeys(mgmt_api_ctx *ctx, bdaddr_t *address)
                 }
 
                 keyType = g_key_file_get_integer(file, "LinkKey", "Type",
-				&pError);
+                        &pError);
                 
                 if (pError)
                 {
@@ -86,12 +81,6 @@ void loadLinkKeys(mgmt_api_ctx *ctx, bdaddr_t *address)
 
                 g_key_file_free(file);
             }
-
-            // Return to device folder
-            controllerFolder = strrchr(path, '/');
-            *controllerFolder = '\0';
-            controllerFolder = strrchr(path, '/');
-            *controllerFolder = '\0';
         }
     }
 }
