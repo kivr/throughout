@@ -2,11 +2,9 @@
 #include <dirent.h>
 #include <glib.h>
 
-#define DEVICE_ADDRESS "00:1F:20:3D:28:C1"
-#define LINK_KEY "339680868FE5E6A8E2A8A92FD013745C"
-
 #define BA_STR_LENGTH (sizeof(bdaddr_t) * 3 - 1)
-#define LINK_KEYS_PATH "/var/lib/bluetooth/%s/%s/info"
+#define CONTROLLER_PATH "/var/lib/bluetooth/%s"
+#define LINK_KEYS_PATH CONTROLLER_PATH "/%s/info"
 
 static void setLinkKey(mgmt_api_ctx *ctx, const char *address, const char *key,
         uint8_t keyType, uint8_t pinLength)
@@ -33,6 +31,8 @@ void loadLinkKeys(mgmt_api_ctx *ctx, bdaddr_t *address)
     char str_address[BA_STR_LENGTH];
 
     ba2str(address, str_address);
+ 
+    sprintf(path, CONTROLLER_PATH, str_address);
 
     d = opendir(path);
 
