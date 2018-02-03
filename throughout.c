@@ -4,7 +4,7 @@
 #include <sys/socket.h>
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/l2cap.h>
-#include "usb_hid.h"
+#include "usb/usb_hid.h"
 
 #define DEST_ADDR "b8:8a:60:6a:68:d6"
 #define PREFIX "\xa1\x12"
