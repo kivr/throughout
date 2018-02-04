@@ -93,6 +93,46 @@ void mgmt_api_set_power(mgmt_api_ctx *ctx, bool powerState)
     writev(*ctx, iov, 2);
 }
 
+void mgmt_api_set_ssp(mgmt_api_ctx *ctx, bool ssp)
+{
+    struct mgmt_hdr header;
+    uint8_t value;
+    struct iovec iov[2];
+    
+    header.opcode = MGMT_OP_SET_SSP;
+    header.index = 0;
+    header.len = sizeof(value);
+    
+    value = ssp ? 1 : 0;
+    
+    iov[0].iov_base = &header;
+    iov[0].iov_len = sizeof(header);
+    iov[1].iov_base = &value;
+    iov[1].iov_len = sizeof(value);
+    
+    writev(*ctx, iov, 2);
+}
+
+void mgmt_api_set_bondable(mgmt_api_ctx *ctx, bool bondable)
+{
+    struct mgmt_hdr header;
+    uint8_t value;
+    struct iovec iov[2];
+    
+    header.opcode = MGMT_OP_SET_BONDABLE;
+    header.index = 0;
+    header.len = sizeof(value);
+    
+    value = bondable ? 1 : 0;
+    
+    iov[0].iov_base = &header;
+    iov[0].iov_len = sizeof(header);
+    iov[1].iov_base = &value;
+    iov[1].iov_len = sizeof(value);
+    
+    writev(*ctx, iov, 2);
+}
+
 void mgmt_api_set_connectable(mgmt_api_ctx *ctx, bool connectable)
 {
     struct mgmt_hdr header;

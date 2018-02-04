@@ -1,88 +1,114 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <pthread.h>
 #include <sys/socket.h>
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/l2cap.h>
 #include "usb/usb_hid.h"
+#include "bt/bt_hid.h"
+#include "bt/utils/bt_utils.h"
 
-#define DEST_ADDR "b8:8a:60:6a:68:d6"
+//#define DEST_ADDR "b8:8a:60:6a:68:d6"
+#define DEST_ADDR "60:BE:B5:30:61:AB"
 #define PREFIX "\xa1\x12"
 
-#define INPUT_SIZE 8
-#define BUFFER_SIZE (INPUT_SIZE + sizeof(PREFIX) - 1)
-
-int main(int argc, char *argv[])
-{
-	struct sockaddr_l2 control_addr;
-	int control_socket, status;
-
-	memset(&control_addr, 0, sizeof(control_addr));
-
-	control_socket = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_L2CAP);
-
-	control_addr.l2_family = AF_BLUETOOTH;
-	control_addr.l2_psm = 17;
-	str2ba(DEST_ADDR, &control_addr.l2_bdaddr);
-
-	status = connect(control_socket, (struct sockaddr*)&control_addr,
-			sizeof(control_addr));
-
-	if (status != 0)
-	{
-		close(control_socket);
-		return -1;
-	}
-
-	struct sockaddr_l2 interrupt_addr;
-	int interrupt_socket;
-
-	printf("Success on control socket\n");
+#define USB_INPUT_SIZE 8
+#define BT_INPUT_SIZE 64
+#define USB_BUFFER_SIZE (USB_INPUT_SIZE + sizeof(PREFIX) - 1)
 	
-	memset(&interrupt_addr, 0, sizeof(interrupt_addr));
-
-	interrupt_socket = socket(AF_BLUETOOTH, SOCK_STREAM,
-		BTPROTO_L2CAP);
-
-	interrupt_addr.l2_family = AF_BLUETOOTH;
-	interrupt_addr.l2_psm = 19;
-	str2ba(DEST_ADDR, &interrupt_addr.l2_bdaddr);
-
-	status = connect(interrupt_socket,
-		(struct sockaddr*)&interrupt_addr,
-		sizeof(interrupt_addr));
-
-	if (status != 0)
-	{
-		close(interrupt_socket);
-		return -1;
-	}
-
-	printf("Success on interrupt socket\n");
-
-	usb_hid_ctx *ctx = usb_hid_init(0x046d, 0xc52f, 0);
+static void *usb_loop(void *data)
+{
+    int interrupt_socket = *(int*)data;
+    usb_hid_ctx *ctx = usb_hid_init(0x046d, 0xc52f, 0);
 
 	if (ctx == NULL)
 	{
-		return -1;
+		return NULL;
 	}
+
+    printf("Connected to USB device\n");
 
 	for (;;)
 	{
-		char input[INPUT_SIZE];
+		char input[USB_INPUT_SIZE];
 		
 		if (usb_hid_get_report(ctx, 0x81,
-					input, INPUT_SIZE))
+					input, USB_INPUT_SIZE))
 		{
-			char buffer[BUFFER_SIZE];
+			char buffer[USB_BUFFER_SIZE];
 
 			strcpy(buffer, PREFIX);
-			memcpy(buffer + sizeof(PREFIX) - 1, input, INPUT_SIZE);
+			memcpy(buffer + sizeof(PREFIX) - 1, input, USB_INPUT_SIZE);
 
 			write(interrupt_socket, buffer,
-				BUFFER_SIZE);
+				USB_BUFFER_SIZE);
 		}
 	}
+
+    return NULL;
+}
+
+static void *bt_loop(void *data)
+{
+    int interrupt_socket = *(int*)data;
+    bt_hid_ctx *ctx = bt_hid_init();
+
+	if (ctx == NULL)
+	{
+		return NULL;
+	}
+    
+    printf("Connected to BT device\n");
+
+	for (;;)
+	{
+		char input[BT_INPUT_SIZE];
+        int bytesRead;
+		
+		if ((bytesRead = bt_hid_get_report(ctx, input, BT_INPUT_SIZE)))
+		{
+			write(interrupt_socket, input, bytesRead);
+		}
+	}
+
+    return NULL;
+}
+
+int main(int argc, char *argv[])
+{
+	int control_socket;
+	int interrupt_socket;
+
+    pthread_t bt_thread, usb_thread;
+
+    control_socket = bt_connect_to_psm(DEST_ADDR, 17);
+
+    if (control_socket >= 0)
+    {
+	    printf("Success on control socket\n");
+	}
+    else
+    {
+	    return -1;
+	}
+	
+    interrupt_socket = bt_connect_to_psm(DEST_ADDR, 19);
+
+    if (interrupt_socket >= 0)
+    {
+	    printf("Success on interrupt socket\n");
+	}
+    else
+    {
+	    return -1;
+	}
+
+    pthread_create(&bt_thread, NULL, bt_loop, &interrupt_socket);
+    pthread_create(&usb_thread, NULL, usb_loop, &interrupt_socket);
+
+    pthread_join(bt_thread, NULL);
+    pthread_join(usb_thread, NULL);
 
 	close(interrupt_socket);
 

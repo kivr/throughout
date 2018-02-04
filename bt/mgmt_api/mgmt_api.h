@@ -20,6 +20,10 @@ void mgmt_api_get_controller_address(mgmt_api_ctx*, char[BA_STR_LENGTH]);
 
 void mgmt_api_set_power(mgmt_api_ctx*, bool);
 
+void mgmt_api_set_ssp(mgmt_api_ctx*, bool);
+
+void mgmt_api_set_bondable(mgmt_api_ctx*, bool);
+
 void mgmt_api_set_connectable(mgmt_api_ctx*, bool);
 
 void mgmt_api_set_name(mgmt_api_ctx*, const char*);

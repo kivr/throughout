@@ -100,6 +100,8 @@ int main()
     mgmt_api_set_class(ctx, 5, 0);
     mgmt_api_set_power(ctx, true);
     mgmt_api_set_connectable(ctx, true);
+    mgmt_api_set_ssp(ctx, true);
+    mgmt_api_set_bondable(ctx, true);
 
     mgmt_api_get_controller_address(ctx, controller_address);
 
