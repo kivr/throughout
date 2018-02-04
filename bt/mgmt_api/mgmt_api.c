@@ -1,4 +1,5 @@
 #include "mgmt_api.h"
+#include <bluetooth/bluetooth.h>
 #include "mgmt.h"
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -41,7 +42,7 @@ mgmt_api_ctx *mgmt_api_connect()
 }
 
 void mgmt_api_get_controller_address(mgmt_api_ctx *ctx,
-		bdaddr_t *controller_address)
+		char *controller_address)
 {
     //Output
     struct mgmt_hdr header;
@@ -69,7 +70,7 @@ void mgmt_api_get_controller_address(mgmt_api_ctx *ctx,
 
     readv(*ctx, iov, 3);
 
-    memcpy(controller_address, &info.bdaddr, sizeof(info.bdaddr));
+    ba2str(&info.bdaddr, controller_address);
 }
 
 void mgmt_api_set_power(mgmt_api_ctx *ctx, bool powerState)
@@ -161,33 +162,49 @@ void mgmt_api_set_class(mgmt_api_ctx *ctx, uint8_t major, uint8_t minor)
     writev(*ctx, iov, 2);
 }
 
-void mgmt_api_set_link_key(mgmt_api_ctx *ctx, bdaddr_t *bdaddr, uint8_t val[16],
-    uint8_t key_type, uint8_t pin_length)
+static void keyStringToBytes(const char *s_key, uint8_t key[BA_KEY_LENGTH])
 {
+    int i;
+    
+    for (i = 0; i < BA_KEY_LENGTH; i++)
+    {
+        sscanf(s_key + i * 2, "%02x", key + i);
+    } 
+}
+
+void mgmt_api_set_link_keys(mgmt_api_ctx *ctx, struct link_key *s_link_keys,
+    uint16_t size)
+{
+    int i;
     struct mgmt_hdr header;
-    struct mgmt_cp_load_link_keys linkKeys;
-    struct mgmt_link_key_info keyInfo;
-    struct iovec iov[3];
+    struct mgmt_cp_load_link_keys *linkKeys;
+    struct iovec iov[2];
+
+    int dataSize = sizeof(struct mgmt_cp_load_link_keys) +
+        sizeof(struct mgmt_link_key_info) * size;
     
     header.opcode = MGMT_OP_LOAD_LINK_KEYS;
     header.index = 0;
-    header.len = sizeof(linkKeys) + sizeof(struct mgmt_link_key_info);
-    
-    linkKeys.debug_keys = 0;
-    linkKeys.key_count = 1;
-    
-    keyInfo.addr.bdaddr = *bdaddr;
-    keyInfo.addr.type = 0;
-    keyInfo.type = key_type;
-    memcpy(keyInfo.val, val, 16);
-    keyInfo.pin_len = pin_length;
+    header.len = dataSize;
+
+    linkKeys = malloc(dataSize);   
+ 
+    linkKeys->debug_keys = 0;
+    linkKeys->key_count = size;
+
+    for (i = 0; i < size; i++)
+    {
+        str2ba(s_link_keys[i].address, &(linkKeys->keys[i].addr.bdaddr));
+        linkKeys->keys[i].addr.type = 0;
+        linkKeys->keys[i].type = s_link_keys[i].key_type;
+        keyStringToBytes(s_link_keys[i].key, linkKeys->keys[i].val);
+        linkKeys->keys[i].pin_len = s_link_keys[i].pin_length;
+    }
     
     iov[0].iov_base = &header;
     iov[0].iov_len = sizeof(header);
-    iov[1].iov_base = &linkKeys;
-    iov[1].iov_len = sizeof(linkKeys);
-    iov[2].iov_base = &keyInfo;
-    iov[2].iov_len = sizeof(keyInfo);
+    iov[1].iov_base = linkKeys;
+    iov[1].iov_len = dataSize;
     
-    writev(*ctx, iov, 3);
+    writev(*ctx, iov, 2);
 }

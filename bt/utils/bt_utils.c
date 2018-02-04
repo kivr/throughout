@@ -38,7 +38,7 @@ int bt_connect_to_psm(const char *s_address, int psm)
     s = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_L2CAP);
 
     address.l2_family = AF_BLUETOOTH;
-    address.l2_psm = 17;
+    address.l2_psm = psm;
     str2ba(s_address, &address.l2_bdaddr);
 
     status = connect(s, (struct sockaddr*)&address, sizeof(address));

@@ -1,50 +1,35 @@
-#include "bt/mgmt_api/mgmt_api.h"
+#include "mgmt_api/mgmt_api.h"
 #include <dirent.h>
 #include <glib.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#define BA_STR_LENGTH (sizeof(bdaddr_t) * 3 - 1)
 #define CONTROLLER_PATH "/var/lib/bluetooth/%s"
 #define LINK_KEYS_PATH CONTROLLER_PATH "/%s/info"
 
-static void setLinkKey(mgmt_api_ctx *ctx, const char *address, const char *key,
-        uint8_t keyType, uint8_t pinLength)
-{
-    bdaddr_t device_address;
-    uint8_t bkey[16];
-    int i;
-    
-    for (i = 0; i < 16; i++)
-    {
-        sscanf(key + i * 2, "%02x", bkey + i);
-    }
-    
-    str2ba(address, &device_address);
-    
-    mgmt_api_set_link_key(ctx, &device_address, bkey, 5, 0);
-}
-
-void loadLinkKeys(mgmt_api_ctx *ctx, bdaddr_t *address)
+void loadLinkKeys(mgmt_api_ctx *ctx, const char *address)
 {
     DIR *d;
-    struct dirent *dir;
     char path[128];
-    char str_address[BA_STR_LENGTH];
-
-    ba2str(address, str_address);
  
-    sprintf(path, CONTROLLER_PATH, str_address);
+    sprintf(path, CONTROLLER_PATH, address);
 
     d = opendir(path);
 
     if (d)
     {
+        int i = 0;
+        struct link_key *linkKeys = NULL;
+        struct dirent *dir;
+
         while ((dir = readdir(d)) != NULL)
         {
             GError *pError = NULL;
             GKeyFile *file = g_key_file_new();
             char *controllerFolder;
 
-            sprintf(path, LINK_KEYS_PATH, str_address, dir->d_name);
+            sprintf(path, LINK_KEYS_PATH, address, dir->d_name);
 
             g_key_file_load_from_file(file, path, 0, &pError);
 
@@ -58,6 +43,7 @@ void loadLinkKeys(mgmt_api_ctx *ctx, bdaddr_t *address)
 
                 if (pError)
                 {
+                    g_key_file_free(file);
                     continue;
                 }
 
@@ -66,6 +52,7 @@ void loadLinkKeys(mgmt_api_ctx *ctx, bdaddr_t *address)
                 
                 if (pError)
                 {
+                    g_key_file_free(file);
                     continue;
                 }
 
@@ -74,20 +61,38 @@ void loadLinkKeys(mgmt_api_ctx *ctx, bdaddr_t *address)
                 
                 if (pError)
                 {
+                    g_key_file_free(file);
                     continue;
                 }
 
-                setLinkKey(ctx, dir->d_name, key, keyType, pinLength);
+                linkKeys = realloc(linkKeys, sizeof(struct link_key) * (i + 1));
+
+                strcpy(linkKeys[i].address, dir->d_name);
+                strcpy(linkKeys[i].key, key);
+
+                g_free(key);
+
+                linkKeys[i].key_type = keyType;
+                linkKeys[i].pin_length = pinLength;
+                i++;
 
                 g_key_file_free(file);
             }
+        }
+
+        if (i > 0)
+        {
+            mgmt_api_set_link_keys(ctx, linkKeys, i);
+
+            // Clean up
+            free(linkKeys);
         }
     }
 }
 
 int main()
 {
-    bdaddr_t controller_address;
+    char controller_address[BA_STR_LENGTH];
 
     mgmt_api_ctx *ctx = mgmt_api_connect();
     
@@ -96,9 +101,9 @@ int main()
     mgmt_api_set_power(ctx, true);
     mgmt_api_set_connectable(ctx, true);
 
-    mgmt_api_get_controller_address(ctx, &controller_address);
+    mgmt_api_get_controller_address(ctx, controller_address);
 
-    loadLinkKeys(ctx, &controller_address);
+    loadLinkKeys(ctx, controller_address);
     
     return 0;
 }
