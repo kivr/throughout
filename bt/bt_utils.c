@@ -1,3 +1,7 @@
+#include <sys/socket.h>
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/l2cap.h>
+
 int bt_wait_for_connection_on_psm(int psm)
 {
 	struct sockaddr_l2 addr;
