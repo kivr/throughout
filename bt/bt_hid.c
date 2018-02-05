@@ -32,6 +32,5 @@ bt_hid_ctx *bt_hid_init()
 
 int bt_hid_get_report(bt_hid_ctx *ctx, uint8_t *report, size_t size)
 {
-    int socket = ctx->interrupt;
-	return read(socket, report, size);
+	return read(ctx->interrupt, report, size);
 }

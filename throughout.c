@@ -10,8 +10,8 @@
 #include "bt/bt_hid.h"
 #include "bt/utils/bt_utils.h"
 
-#define CLIENT0_ADDRESS "b8:8a:60:6a:68:d6"
-#define CLIENT1_ADDRESS "60:BE:B5:30:61:AB"
+#define CLIENT0_ADDRESS "60:BE:B5:30:61:AB"
+#define CLIENT1_ADDRESS "b8:8a:60:6a:68:d6"
 #define PREFIX "\xa1\x12"
 
 #define USB_INPUT_SIZE 8
@@ -20,69 +20,65 @@
 
 #define NUM_OF_CLIENTS 4
 
+#define SWITCH_SEQUENCE "\xa1\x01\x22\x00\x00\x00\x00\x00\x00\x00"
+
 static struct client
 {
-    bool connected;
     const char *address;
     int control_socket;
     int interrupt_socket;
 } clients[NUM_OF_CLIENTS];
 
-static struct client *current_client;
+static struct client *current_client = NULL;
 
 static pthread_mutex_t mutex;
 
-static void connect_clients()
+static void switch_current_client()
 {
-    int i;
-
+    int i, j;
+    // Find current client
     for (i = 0; i < NUM_OF_CLIENTS; i++)
     {
-        if (!clients[i].connected && clients[i].address != NULL)
-        {
-            clients[i].control_socket =
-                bt_connect_to_psm(clients[i].address, 17);
-
-            if (clients[i].control_socket >= 0)
-            {
-                printf("Success on control socket for client %d\n", i + 1);
-            }
-            else
-            {
-                continue;
-            }
-	
-            clients[i].interrupt_socket =
-                bt_connect_to_psm(clients[i].address, 19);
-
-            if (clients[i].interrupt_socket >= 0)
-            {
-                printf("Success on interrupt socket for client %d\n", i + 1);
-                clients[i].connected = true;
-
-                if (current_client == NULL)
-                {
-                    current_client = &clients[i];
-                }
-            }
-            else
-            {
-                continue;
-            }
-        }
-    }
-}
-    
-static void close_clients()
-{
-    int i;
-
-    for (i = 0; i < NUM_OF_CLIENTS; i++)
-    {
-        if (!clients[i].connected)
+        if (&clients[i] == current_client)
         {
             close(clients[i].control_socket);
             close(clients[i].interrupt_socket);
+            break;
+        }
+    }
+
+    // Find next connected client
+    for (j = (i + 1) % NUM_OF_CLIENTS; j != i; j = (j + 1) % NUM_OF_CLIENTS)
+    {
+        if (clients[j].address)
+        {
+                clients[j].control_socket =
+                    bt_connect_to_psm(clients[j].address, 17);
+
+                if (clients[j].control_socket >= 0)
+                {
+                    printf("Success on control socket for client %d\n", j + 1);
+                }
+                else
+                {
+                    continue;
+                }
+        
+                clients[j].interrupt_socket =
+                    bt_connect_to_psm(clients[j].address, 19);
+
+                if (clients[j].interrupt_socket >= 0)
+                {
+                    printf("Success on interrupt socket for client %d\n",
+                        j + 1);
+
+                    current_client = &clients[j];
+                    break;
+                }
+                else
+                {
+                    continue;
+                }
         }
     }
 }
@@ -99,6 +95,7 @@ static void send_to_client(const char *input, int size)
 	
 static void *usb_loop(void *data)
 {
+    char buffer[USB_BUFFER_SIZE];
     usb_hid_ctx *ctx = usb_hid_init(0x046d, 0xc52f, 0);
 
 	if (ctx == NULL)
@@ -108,6 +105,8 @@ static void *usb_loop(void *data)
 
     printf("Connected to USB device\n");
 
+    strcpy(buffer, PREFIX);
+
 	for (;;)
 	{
 		char input[USB_INPUT_SIZE];
@@ -115,9 +114,6 @@ static void *usb_loop(void *data)
 		if (usb_hid_get_report(ctx, 0x81,
 					input, USB_INPUT_SIZE))
 		{
-			char buffer[USB_BUFFER_SIZE];
-
-			strcpy(buffer, PREFIX);
 			memcpy(buffer + sizeof(PREFIX) - 1, input, USB_INPUT_SIZE);
 
 			send_to_client(buffer, USB_BUFFER_SIZE);
@@ -145,6 +141,11 @@ static void *bt_loop(void *data)
 		
 		if ((bytesRead = bt_hid_get_report(ctx, input, BT_INPUT_SIZE)))
 		{
+            if (strncmp(input, SWITCH_SEQUENCE, bytesRead) == 0)
+            {
+                switch_current_client();
+            }
+
 			send_to_client(input, bytesRead);
 		}
 	}
@@ -161,7 +162,7 @@ int main(int argc, char *argv[])
     clients[0].address = CLIENT0_ADDRESS;
     clients[1].address = CLIENT1_ADDRESS;
 
-    connect_clients();
+    switch_current_client();
 
     pthread_mutex_init(&mutex, NULL);
 
@@ -171,7 +172,11 @@ int main(int argc, char *argv[])
     pthread_join(bt_thread, NULL);
     pthread_join(usb_thread, NULL);
 
-	close_clients();
+    if (current_client != NULL)
+    {
+        close(current_client->control_socket);
+        close(current_client->interrupt_socket);
+    }	
 
 	return 0;
 }
