@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
@@ -9,19 +10,95 @@
 #include "bt/bt_hid.h"
 #include "bt/utils/bt_utils.h"
 
-//#define DEST_ADDR "b8:8a:60:6a:68:d6"
-#define DEST_ADDR "60:BE:B5:30:61:AB"
+#define CLIENT0_ADDRESS "b8:8a:60:6a:68:d6"
+#define CLIENT1_ADDRESS "60:BE:B5:30:61:AB"
 #define PREFIX "\xa1\x12"
 
 #define USB_INPUT_SIZE 8
 #define BT_INPUT_SIZE 64
 #define USB_BUFFER_SIZE (USB_INPUT_SIZE + sizeof(PREFIX) - 1)
 
+#define NUM_OF_CLIENTS 4
+
+static struct client
+{
+    bool connected;
+    const char *address;
+    int control_socket;
+    int interrupt_socket;
+} clients[NUM_OF_CLIENTS];
+
+static struct client *current_client;
+
 static pthread_mutex_t mutex;
+
+static void connect_clients()
+{
+    int i;
+
+    for (i = 0; i < NUM_OF_CLIENTS; i++)
+    {
+        if (!clients[i].connected && clients[i].address != NULL)
+        {
+            clients[i].control_socket =
+                bt_connect_to_psm(clients[i].address, 17);
+
+            if (clients[i].control_socket >= 0)
+            {
+                printf("Success on control socket for client %d\n", i + 1);
+            }
+            else
+            {
+                continue;
+            }
+	
+            clients[i].interrupt_socket =
+                bt_connect_to_psm(clients[i].address, 19);
+
+            if (clients[i].interrupt_socket >= 0)
+            {
+                printf("Success on interrupt socket for client %d\n", i + 1);
+                clients[i].connected = true;
+
+                if (current_client == NULL)
+                {
+                    current_client = &clients[i];
+                }
+            }
+            else
+            {
+                continue;
+            }
+        }
+    }
+}
+    
+static void close_clients()
+{
+    int i;
+
+    for (i = 0; i < NUM_OF_CLIENTS; i++)
+    {
+        if (!clients[i].connected)
+        {
+            close(clients[i].control_socket);
+            close(clients[i].interrupt_socket);
+        }
+    }
+}
+
+static void send_to_client(const char *input, int size)
+{
+    if (current_client != NULL)
+    {
+        pthread_mutex_lock(&mutex);
+        write(current_client->interrupt_socket, input, size);
+        pthread_mutex_unlock(&mutex);
+    }
+}
 	
 static void *usb_loop(void *data)
 {
-    int interrupt_socket = *(int*)data;
     usb_hid_ctx *ctx = usb_hid_init(0x046d, 0xc52f, 0);
 
 	if (ctx == NULL)
@@ -43,8 +120,7 @@ static void *usb_loop(void *data)
 			strcpy(buffer, PREFIX);
 			memcpy(buffer + sizeof(PREFIX) - 1, input, USB_INPUT_SIZE);
 
-			write(interrupt_socket, buffer,
-				USB_BUFFER_SIZE);
+			send_to_client(buffer, USB_BUFFER_SIZE);
 		}
 	}
 
@@ -53,7 +129,6 @@ static void *usb_loop(void *data)
 
 static void *bt_loop(void *data)
 {
-    int interrupt_socket = *(int*)data;
     bt_hid_ctx *ctx = bt_hid_init();
 
 	if (ctx == NULL)
@@ -70,9 +145,7 @@ static void *bt_loop(void *data)
 		
 		if ((bytesRead = bt_hid_get_report(ctx, input, BT_INPUT_SIZE)))
 		{
-            pthread_mutex_lock(&mutex);
-			write(interrupt_socket, input, bytesRead);
-            pthread_mutex_unlock(&mutex);
+			send_to_client(input, bytesRead);
 		}
 	}
 
@@ -81,44 +154,24 @@ static void *bt_loop(void *data)
 
 int main(int argc, char *argv[])
 {
-	int control_socket;
-	int interrupt_socket;
-
     pthread_t bt_thread, usb_thread;
 
-    control_socket = bt_connect_to_psm(DEST_ADDR, 17);
+    memset(clients, 0, sizeof(clients));
 
-    if (control_socket >= 0)
-    {
-	    printf("Success on control socket\n");
-	}
-    else
-    {
-	    return -1;
-	}
-	
-    interrupt_socket = bt_connect_to_psm(DEST_ADDR, 19);
+    clients[0].address = CLIENT0_ADDRESS;
+    clients[1].address = CLIENT1_ADDRESS;
 
-    if (interrupt_socket >= 0)
-    {
-	    printf("Success on interrupt socket\n");
-	}
-    else
-    {
-	    return -1;
-	}
+    connect_clients();
 
     pthread_mutex_init(&mutex, NULL);
 
-    pthread_create(&bt_thread, NULL, bt_loop, &interrupt_socket);
-    pthread_create(&usb_thread, NULL, usb_loop, &interrupt_socket);
+    pthread_create(&bt_thread, NULL, bt_loop, NULL);
+    pthread_create(&usb_thread, NULL, usb_loop, NULL);
 
     pthread_join(bt_thread, NULL);
     pthread_join(usb_thread, NULL);
 
-	close(interrupt_socket);
-
-	close(control_socket);
+	close_clients();
 
 	return 0;
 }
