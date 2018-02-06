@@ -14,7 +14,7 @@
 #define USB_BUFFER_SIZE (USB_INPUT_SIZE + sizeof(USB_PREFIX) - 1)
 
 #define USB_INPUT_SIZE 8
-#define BT_INPUT_SIZE 64
+#define BT_INPUT_SIZE 10
 
 #define SWITCH_SEQUENCE "\xa1\x01\x22\x00\x00\x00\x00\x00\x00\x00"
 #define KEY_UP_SEQUENCE "\xa1\x01\x00\x00\x00\x00\x00\x00\x00\x00"
@@ -32,21 +32,6 @@ struct _tgot_ctx
 typedef struct _tgot_ctx tgot_ctx;
 
 static pthread_mutex_t mutex;
-
-static void send_to_client(tgot_ctx *ctx, const char *input, int size)
-{
-    pthread_mutex_lock(ctx->mutex);
-    write(ctx->interrupt_socket, input, size);
-    pthread_mutex_unlock(ctx->mutex);
-}
-
-static void close_client_connection(tgot_ctx *ctx)
-{
-    send_to_client(ctx, KEY_UP_SEQUENCE, sizeof(KEY_UP_SEQUENCE) - 1);
-    close(ctx->control_socket);
-    close(ctx->interrupt_socket);
-    ctx->connected = false;
-}
 
 static void create_client_connection(tgot_ctx *ctx)
 {
@@ -71,6 +56,44 @@ static void create_client_connection(tgot_ctx *ctx)
     
     printf("Success on interrupt socket for client %s\n", address);
     ctx->connected = true;
+}
+
+static void close_client_connection(tgot_ctx *ctx)
+{
+    ctx->connected = false;
+    close(ctx->control_socket);
+    close(ctx->interrupt_socket);
+}
+
+static void send_to_client(tgot_ctx *ctx, const char *input, int size)
+{
+    int result = -1;
+
+    pthread_mutex_lock(ctx->mutex);
+   
+    while (result == -1)
+    {
+        // Wait for connection 
+        while (!ctx->connected)
+        {
+            create_client_connection(ctx);
+        }
+
+        result = write(ctx->interrupt_socket, input, size);
+
+        if (result == -1)
+        {
+            close_client_connection(ctx);
+        }
+    }
+
+    pthread_mutex_unlock(ctx->mutex);
+}
+
+static void finish_client_connection(tgot_ctx *ctx)
+{
+    send_to_client(ctx, KEY_UP_SEQUENCE, sizeof(KEY_UP_SEQUENCE) - 1);
+    close_client_connection(ctx);
 }
 
 static void switch_current_client(tgot_ctx *ctx)
@@ -160,13 +183,11 @@ int main(int argc, char *argv[])
     pthread_t bt_thread, usb_thread;
     pthread_mutex_t mutex;
 
-    const char *clients[] = {"60:BE:B5:30:61:AB", "b8:8a:60:6a:68:d6", NULL};
-    tgot_ctx ctx = {clients, -1, -1, -1, false, &mutex};
+    const char *clients[] = {"b8:8a:60:6a:68:d6", "60:BE:B5:30:61:AB", NULL};
+    tgot_ctx ctx = {clients, 0, -1, -1, false, &mutex};
 
     pthread_mutex_init(&mutex, NULL);
     
-    switch_current_client(&ctx);
-
     pthread_create(&bt_thread, NULL, bt_loop, &ctx);
     pthread_create(&usb_thread, NULL, usb_loop, &ctx);
 
