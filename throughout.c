@@ -60,7 +60,31 @@ static bool create_client_connection(tgot_ctx *ctx)
     return true;
 }
 
-void loop_until_connected(tgot_ctx *ctx)
+static void close_client_connection(tgot_ctx *ctx)
+{
+    ctx->connected = false;
+    close(ctx->control_socket);
+    close(ctx->interrupt_socket);
+}
+
+static void switch_current_client(tgot_ctx *ctx)
+{
+    ctx->selected_client++;
+    
+    // Go back to first client if we are at the end of the list
+    if (ctx->clients[ctx->selected_client] == NULL)
+    {
+        ctx->selected_client = 0;
+    }
+    
+    // Close current client
+    if (ctx->connected)
+    {
+        close_client_connection(ctx);
+    }
+}
+
+static void loop_until_connected(tgot_ctx *ctx)
 {
     while (!ctx->connected)
     {
@@ -70,13 +94,6 @@ void loop_until_connected(tgot_ctx *ctx)
             switch_current_client(ctx);
         }
     }
-}
-
-static void close_client_connection(tgot_ctx *ctx)
-{
-    ctx->connected = false;
-    close(ctx->control_socket);
-    close(ctx->interrupt_socket);
 }
 
 static void send_to_client(tgot_ctx *ctx, const char *input, int size)
@@ -99,23 +116,6 @@ static void send_to_client(tgot_ctx *ctx, const char *input, int size)
     }
 
     pthread_mutex_unlock(ctx->mutex);
-}
-
-static void switch_current_client(tgot_ctx *ctx)
-{
-    ctx->selected_client++;
-    
-    // Go back to first client if we are at the end of the list
-    if (ctx->clients[ctx->selected_client] == NULL)
-    {
-        ctx->selected_client = 0;
-    }
-    
-    // Close current client
-    if (ctx->connected)
-    {
-        close_client_connection(ctx);
-    }
 }
 
 static void *usb_loop(void *data)
