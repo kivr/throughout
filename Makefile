@@ -1,13 +1,13 @@
 PROG = throughout
-SRCS = $(wildcard gdbus/*.c) $(PROG).c
+SRCS = usb/usb_hid.c bt/bt_hid.c bt/utils/bt_utils.c $(PROG).c
 
 $(PROG): $(patsubst %.c,%.o,$(SRCS))
-	gcc -o $@ $^ `pkg-config --libs dbus-1 glib-2.0`
+	gcc -o $@ $^ `pkg-config --libs libusb-1.0 glib-2.0` -lbluetooth -lpthread
 	
 %.o: %.c
-	gcc -c -o $@ $< -g3 `pkg-config --cflags dbus-1 glib-2.0` -I.
+	gcc -c -o $@ $< -g3 `pkg-config --cflags libusb-1.0 glib-2.0` -I.
 
 .PHONY : clean
 clean:
-	rm *.o gdbus/*.o
+	rm $(patsubst %.c,%.o,$(SRCS))
 	rm $(PROG)
