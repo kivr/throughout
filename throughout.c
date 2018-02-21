@@ -33,7 +33,7 @@ typedef struct _tgot_ctx tgot_ctx;
 
 static pthread_mutex_t mutex;
 
-static void create_client_connection(tgot_ctx *ctx)
+static bool create_client_connection(tgot_ctx *ctx)
 {
     const char *address = ctx->clients[ctx->selected_client];
 
@@ -41,7 +41,7 @@ static void create_client_connection(tgot_ctx *ctx)
 
     if (ctx->control_socket < 0)
     {
-        return;
+        return false;
     }
     
     printf("Success on control socket for client %s\n", address);
@@ -51,11 +51,25 @@ static void create_client_connection(tgot_ctx *ctx)
     if (ctx->interrupt_socket < 0)
     {
         close(ctx->control_socket);
-        return;
+        return false;
     }
     
     printf("Success on interrupt socket for client %s\n", address);
     ctx->connected = true;
+
+    return true;
+}
+
+void loop_until_connected(tgot_ctx *ctx)
+{
+    while (!ctx->connected)
+    {
+        bool result = create_client_connection(ctx);
+        if (!result)
+        {
+            switch_current_client(ctx);
+        }
+    }
 }
 
 static void close_client_connection(tgot_ctx *ctx)
@@ -74,10 +88,7 @@ static void send_to_client(tgot_ctx *ctx, const char *input, int size)
     while (result == -1)
     {
         // Wait for connection 
-        while (!ctx->connected)
-        {
-            create_client_connection(ctx);
-        }
+        loop_until_connected(ctx);
 
         result = write(ctx->interrupt_socket, input, size);
 
@@ -88,12 +99,6 @@ static void send_to_client(tgot_ctx *ctx, const char *input, int size)
     }
 
     pthread_mutex_unlock(ctx->mutex);
-}
-
-static void finish_client_connection(tgot_ctx *ctx)
-{
-    send_to_client(ctx, KEY_UP_SEQUENCE, sizeof(KEY_UP_SEQUENCE) - 1);
-    close_client_connection(ctx);
 }
 
 static void switch_current_client(tgot_ctx *ctx)
@@ -111,38 +116,35 @@ static void switch_current_client(tgot_ctx *ctx)
     {
         close_client_connection(ctx);
     }
-
-    // Connect to client
-    create_client_connection(ctx); 
 }
-	
+
 static void *usb_loop(void *data)
 {
     char buffer[USB_BUFFER_SIZE];
     tgot_ctx *p_tgot_ctx = (tgot_ctx*)data;
     usb_hid_ctx *ctx = usb_hid_init(0x046d, 0xc52f, 0);
 
-	if (ctx == NULL)
-	{
-		return NULL;
-	}
+    if (ctx == NULL)
+    {
+        return NULL;
+    }
 
     printf("Connected to USB device\n");
 
     strcpy(buffer, USB_PREFIX);
 
-	for (;;)
-	{
-		char input[USB_INPUT_SIZE];
-		
-		if (usb_hid_get_report(ctx, 0x81,
-					input, USB_INPUT_SIZE))
-		{
-			memcpy(buffer + sizeof(USB_PREFIX) - 1, input, USB_INPUT_SIZE);
+    for (;;)
+    {
+        char input[USB_INPUT_SIZE];
 
-			send_to_client(p_tgot_ctx, buffer, USB_BUFFER_SIZE);
-		}
-	}
+        if (usb_hid_get_report(ctx, 0x81,
+                    input, USB_INPUT_SIZE))
+        {
+            memcpy(buffer + sizeof(USB_PREFIX) - 1, input, USB_INPUT_SIZE);
+
+            send_to_client(p_tgot_ctx, buffer, USB_BUFFER_SIZE);
+        }
+    }
 
     return NULL;
 }
@@ -152,28 +154,29 @@ static void *bt_loop(void *data)
     tgot_ctx *p_tgot_ctx = (tgot_ctx*)data;
     bt_hid_ctx *ctx = bt_hid_init();
 
-	if (ctx == NULL)
-	{
-		return NULL;
-	}
+    if (ctx == NULL)
+    {
+        return NULL;
+    }
     
     printf("Connected to BT device\n");
 
-	for (;;)
-	{
-		char input[BT_INPUT_SIZE];
+    for (;;)
+    {
+        char input[BT_INPUT_SIZE];
         int bytesRead;
-		
-		if ((bytesRead = bt_hid_get_report(ctx, input, BT_INPUT_SIZE)))
-		{
+
+        if ((bytesRead = bt_hid_get_report(ctx, input, BT_INPUT_SIZE)))
+        {
             if (strncmp(input, SWITCH_SEQUENCE, bytesRead) == 0)
             {
                 switch_current_client(p_tgot_ctx);
+                loop_until_connected(p_tgot_ctx);
             }
 
-			send_to_client(p_tgot_ctx, input, bytesRead);
-		}
-	}
+            send_to_client(p_tgot_ctx, input, bytesRead);
+        }
+    }
 
     return NULL;
 }
@@ -196,5 +199,5 @@ int main(int argc, char *argv[])
 
     close_client_connection(&ctx);
 
-	return 0;
+    return 0;
 }
