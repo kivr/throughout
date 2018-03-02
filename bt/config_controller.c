@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define CONTROLLER_PATH "/var/lib/bluetooth/%s"
 #define LINK_KEYS_PATH CONTROLLER_PATH "/%s/info"
@@ -92,21 +93,34 @@ void loadLinkKeys(mgmt_api_ctx *ctx, const char *address)
 
 int main()
 {
+    int result = 1;
     char controller_address[BA_STR_LENGTH];
 
     mgmt_api_ctx *ctx = mgmt_api_connect();
-    
-    mgmt_api_set_power(ctx, false);
-    mgmt_api_set_name(ctx, "Juanito");
-    mgmt_api_set_class(ctx, 5, 0);
-    mgmt_api_set_power(ctx, true);
-    mgmt_api_set_connectable(ctx, true);
-    mgmt_api_set_ssp(ctx, true);
-    mgmt_api_set_bondable(ctx, true);
 
-    mgmt_api_get_controller_address(ctx, controller_address);
+    if (ctx != NULL)
+    {
+        bool powerCommandComplete = false;
 
-    loadLinkKeys(ctx, controller_address);
+        while (!powerCommandComplete)
+        {
+            powerCommandComplete = mgmt_api_set_power(ctx, false);
+            sleep(5);
+        }
+
+        mgmt_api_set_name(ctx, "Juanito");
+        mgmt_api_set_class(ctx, 5, 0);
+        mgmt_api_set_power(ctx, true);
+        mgmt_api_set_connectable(ctx, true);
+        mgmt_api_set_ssp(ctx, true);
+        mgmt_api_set_bondable(ctx, true);
+
+        mgmt_api_get_controller_address(ctx, controller_address);
+
+        loadLinkKeys(ctx, controller_address);
+
+        result = 0;
+    }
     
-    return 0;
+    return result;
 }

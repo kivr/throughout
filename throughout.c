@@ -138,9 +138,9 @@ static void *usb_loop(void *data)
         {
             memcpy(buffer + sizeof(USB_PREFIX) - 1, input, USB_INPUT_SIZE);
 
-            pthread_mutex_lock(ctx->mutex);
+            pthread_mutex_lock(p_tgot_ctx->mutex);
             send_to_client(p_tgot_ctx, buffer, USB_BUFFER_SIZE);
-            pthread_mutex_unlock(ctx->mutex);
+            pthread_mutex_unlock(p_tgot_ctx->mutex);
         }
     }
 
@@ -166,14 +166,14 @@ static void *bt_loop(void *data)
 
         if ((bytesRead = bt_hid_get_report(ctx, input, BT_INPUT_SIZE)))
         {
-            pthread_mutex_lock(ctx->mutex);
+            pthread_mutex_lock(p_tgot_ctx->mutex);
             if (strncmp(input, SWITCH_SEQUENCE, bytesRead) == 0)
             {
                 switch_current_client(p_tgot_ctx);
             }
 
             send_to_client(p_tgot_ctx, input, bytesRead);
-            pthread_mutex_unlock(ctx->mutex);
+            pthread_mutex_unlock(p_tgot_ctx->mutex);
         }
     }
 
@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
     pthread_t bt_thread, usb_thread;
     pthread_mutex_t mutex;
 
-    const char *clients[] = {"b8:8a:60:6a:68:d6", "60:BE:B5:30:61:AB", NULL};
+    const char *clients[] = {"6c:40:08:a5:02:5d", "60:BE:B5:30:61:AB", NULL};
     tgot_ctx ctx = {clients, 0, -1, -1, false, &mutex};
 
     pthread_mutex_init(&mutex, NULL);

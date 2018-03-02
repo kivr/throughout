@@ -73,9 +73,10 @@ void mgmt_api_get_controller_address(mgmt_api_ctx *ctx,
     ba2str(&info.bdaddr, controller_address);
 }
 
-void mgmt_api_set_power(mgmt_api_ctx *ctx, bool powerState)
+bool mgmt_api_set_power(mgmt_api_ctx *ctx, bool powerState)
 {
     struct mgmt_hdr header;
+    struct mgmt_ev_cmd_status status;
     uint8_t value;
     struct iovec iov[2];
     
@@ -91,6 +92,15 @@ void mgmt_api_set_power(mgmt_api_ctx *ctx, bool powerState)
     iov[1].iov_len = sizeof(value);
     
     writev(*ctx, iov, 2);
+
+    iov[1].iov_base = &status;
+    iov[1].iov_len = sizeof(status);
+
+    readv(*ctx, iov, 2);
+
+    return header.opcode == MGMT_EV_CMD_COMPLETE
+                && status.opcode == MGMT_OP_SET_POWERED
+                && status.status == MGMT_STATUS_SUCCESS;
 }
 
 void mgmt_api_set_ssp(mgmt_api_ctx *ctx, bool ssp)
@@ -170,8 +180,8 @@ void mgmt_api_set_name(mgmt_api_ctx *ctx, const char *in_name)
     
     memset(&name, 0, sizeof(name));
     
-    strcpy(name.name, in_name);
-    strcpy(name.short_name, in_name);
+    strcpy((char*)name.name, in_name);
+    strcpy((char*)name.short_name, in_name);
     
     iov[0].iov_base = &header;
     iov[0].iov_len = sizeof(header);
