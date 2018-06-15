@@ -10,7 +10,7 @@
 #include "bt/bt_hid.h"
 #include "bt/utils/bt_utils.h"
 
-#define USB_PREFIX "\xa1\x12"
+#define USB_PREFIX "\xa1\x14"
 #define USB_BUFFER_SIZE (USB_INPUT_SIZE + sizeof(USB_PREFIX) - 1)
 
 #define USB_INPUT_SIZE 8

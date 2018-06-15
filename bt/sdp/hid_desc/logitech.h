@@ -153,7 +153,7 @@
     "\x05\x01"     /* Usage Page (Generic Desktop Ctrls)*/ \
     "\x09\x02"     /* Usage (Mouse)*/ \
     "\xA1\x01"     /* Collection (Application)*/ \
-    "\x85\x12"     /*   Report ID (18)*/ \
+    "\x85\x14"     /*   Report ID (20)*/ \
     "\x09\x01"     /*   Usage (Pointer)*/ \
     "\xA1\x00"     /*   Collection (Physical)*/ \
     "\x05\x09"     /*     Usage Page (Button)*/ \
