@@ -2,13 +2,19 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <pthread.h>
 #include <sys/socket.h>
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/l2cap.h>
+#include "usb/usb_hid.h"
 #include "bt/bt_hid.h"
 #include "bt/utils/bt_utils.h"
 
-#define MOUSE_REPORT_ID 20
+#define USB_PREFIX "\xa1\x14"
+#define USB_BUFFER_SIZE (USB_INPUT_SIZE + sizeof(USB_PREFIX) - 1)
+
+#define USB_INPUT_SIZE 8
+#define BT_INPUT_SIZE 10
 
 #define SWITCH_SEQUENCE "\xa1\x01\x22\x00\x00\x00\x00\x00\x00\x00"
 #define KEY_UP_SEQUENCE "\xa1\x01\x00\x00\x00\x00\x00\x00\x00\x00"
@@ -18,26 +24,22 @@
     #define FN_KEY_UP_SEQUENCE "\xa1\x11\x00"
 #endif
 
-typedef struct _tgot_client
+struct _tgot_ctx
 {
-    const char *address;
-    int control;
-    int interrupt;
-    bool connected;
-}tgot_client;
-
-typedef struct _tgot_ctx
-{
-    tgot_client *clients;
+    const char **clients;
     int selected_client;
+    int control_socket;
+    int interrupt_socket;
+    bool connected;
+    pthread_mutex_t *mutex;
 #ifdef APPLE_KEYBOARD
     bool fnOn;
 #endif
-}tgot_ctx;
+};
 
-static bdaddr_t keyboardAddress;
-static bdaddr_t mouseAddress;
-//static char lastMouseInput[9];
+typedef struct _tgot_ctx tgot_ctx;
+
+static pthread_mutex_t mutex;
 
 static void check_for_control_command(int control_socket)
 {
@@ -52,66 +54,60 @@ static void check_for_control_command(int control_socket)
 
 static bool create_client_connection(tgot_ctx *ctx)
 {
-    tgot_client *client = ctx->clients + ctx->selected_client;
-    const char *address = client->address;
+    const char *address = ctx->clients[ctx->selected_client];
 
-    client->control = bt_connect_to_psm(address, 17);
+    ctx->control_socket = bt_connect_to_psm(address, 17);
 
-    if (client->control < 0)
+    if (ctx->control_socket < 0)
     {
         return false;
     }
     
     printf("Success on control socket for client %s\n", address);
 
-    client->interrupt = bt_connect_to_psm(address, 19);
+    ctx->interrupt_socket = bt_connect_to_psm(address, 19);
 
-    if (client->interrupt < 0)
+    if (ctx->interrupt_socket < 0)
     {
-        close(client->control);
+        close(ctx->control_socket);
         return false;
     }
     
     printf("Success on interrupt socket for client %s\n", address);
-    client->connected = true;
+    ctx->connected = true;
     
-    check_for_control_command(client->control);
+    check_for_control_command(ctx->control_socket);
 
     return true;
 }
 
-static void close_client_connection(tgot_client *client)
+static void close_client_connection(tgot_ctx *ctx)
 {
-    client->connected = false;
-    close(client->control);
-    close(client->interrupt);
+    ctx->connected = false;
+    close(ctx->control_socket);
+    close(ctx->interrupt_socket);
 }
 
 static void switch_current_client(tgot_ctx *ctx)
 {
-    tgot_client *client = ctx->clients + ctx->selected_client;
-
-    send(client->interrupt, KEY_UP_SEQUENCE, sizeof(KEY_UP_SEQUENCE) - 1, 0);
-
     ctx->selected_client++;
     
     // Go back to first client if we are at the end of the list
-    if (ctx->clients[ctx->selected_client].address == NULL)
+    if (ctx->clients[ctx->selected_client] == NULL)
     {
         ctx->selected_client = 0;
     }
     
     // Close current client
-    if (client->connected)
+    if (ctx->connected)
     {
-        close_client_connection(client);
+        close_client_connection(ctx);
     }
 }
 
 static void loop_until_connected(tgot_ctx *ctx)
 {
-    tgot_client *client = ctx->clients + ctx->selected_client;
-    while (!client->connected)
+    while (!ctx->connected)
     {
         bool result = create_client_connection(ctx);
         if (!result)
@@ -127,20 +123,49 @@ static void send_to_client(tgot_ctx *ctx, const char *input, int size)
 
     while (result == -1)
     {
-        tgot_client *client;
-
         // Wait for connection 
         loop_until_connected(ctx);
-        
-        client = ctx->clients + ctx->selected_client;
 
-        result = send(client->interrupt, input, size, 0);
+        result = send(ctx->interrupt_socket, input, size, 0);
 
         if (result == -1)
         {
-            close_client_connection(client);
+            close_client_connection(ctx);
         }
     }
+}
+
+static void *usb_loop(void *data)
+{
+    char buffer[USB_BUFFER_SIZE];
+    tgot_ctx *p_tgot_ctx = (tgot_ctx*)data;
+    usb_hid_ctx *ctx = usb_hid_init(0x046d, 0xc52f, 0);
+
+    if (ctx == NULL)
+    {
+        return NULL;
+    }
+
+    printf("Connected to USB device\n");
+
+    strcpy(buffer, USB_PREFIX);
+
+    for (;;)
+    {
+        char input[USB_INPUT_SIZE];
+
+        if (usb_hid_get_report(ctx, 0x81,
+                    input, USB_INPUT_SIZE))
+        {
+            memcpy(buffer + sizeof(USB_PREFIX) - 1, input, USB_INPUT_SIZE);
+
+            pthread_mutex_lock(p_tgot_ctx->mutex);
+            send_to_client(p_tgot_ctx, buffer, USB_BUFFER_SIZE);
+            pthread_mutex_unlock(p_tgot_ctx->mutex);
+        }
+    }
+
+    return NULL;
 }
 
 #ifdef APPLE_KEYBOARD
@@ -191,21 +216,32 @@ static int applyFnTransform(char *input, int bytesRead)
 }
 #endif
 
-static void bt_callback(char *input, int bytesRead, bdaddr_t *client,
-                        channel_t channel, void *data)
+static void *bt_loop(void *data)
 {
     tgot_ctx *p_tgot_ctx = (tgot_ctx*)data;
+    bt_hid_ctx *ctx = bt_hid_init();
 
-    if (channel == INTERRUPT_CHANNEL)
+    if (ctx == NULL)
     {
-        if (memcmp(client, &keyboardAddress, sizeof(bdaddr_t)) == 0)
+        return NULL;
+    }
+    
+    printf("Connected to BT device\n");
+
+    for (;;)
+    {
+        char input[BT_INPUT_SIZE];
+        int bytesRead;
+
+        if ((bytesRead = bt_hid_get_report(ctx, input, BT_INPUT_SIZE)))
         {
+            pthread_mutex_lock(p_tgot_ctx->mutex);
             if (strncmp(input, SWITCH_SEQUENCE, bytesRead) == 0)
             {
                 switch_current_client(p_tgot_ctx);
             }
 
-    #ifdef APPLE_KEYBOARD
+#ifdef APPLE_KEYBOARD
             if (strncmp(input, FN_SEQUENCE, bytesRead) == 0)
             {
                 p_tgot_ctx->fnOn = true;
@@ -219,64 +255,33 @@ static void bt_callback(char *input, int bytesRead, bdaddr_t *client,
             {
                 bytesRead = applyFnTransform(input, bytesRead);
             }
-    #endif
+#endif
 
             send_to_client(p_tgot_ctx, input, bytesRead);
-        }
-        else if (memcmp(client, &mouseAddress, sizeof(bdaddr_t)) == 0)
-        {
-            input[1] = MOUSE_REPORT_ID;
-
-            //if (memcmp(input, lastMouseInput, sizeof(lastMouseInput)) != 0)
-            //{
-                //memcpy(lastMouseInput, input, sizeof(lastMouseInput));
-                send_to_client(p_tgot_ctx, input, bytesRead);
-            //}
+            pthread_mutex_unlock(p_tgot_ctx->mutex);
         }
     }
-}
 
-void bt_control_callback(int fd, bdaddr_t *address, void *data)
-{
-    if (memcmp(address, &mouseAddress, sizeof(bdaddr_t)) == 0)
-    {
-        send(fd, "\x53\xF1\x02\x01", 4, 0);
-    }
+    return NULL;
 }
 
 int main(int argc, char *argv[])
 {
-    tgot_client clients[] =
-    {
-        {"6c:40:08:a5:02:5d", -1, -1, false},
-        {"60:BE:B5:30:61:AB", -1, -1, false},
-        {NULL, 0, 0, false}
-    };
+    pthread_t bt_thread, usb_thread;
+    pthread_mutex_t mutex;
 
-    tgot_ctx ctx =
-    {
-        clients, 0
-#ifdef APPLE_KEYBOARD
-        , false
-#endif
-    };
+    const char *clients[] = {"6c:40:08:a5:02:5d", "60:BE:B5:30:61:AB", NULL};
+    tgot_ctx ctx = {clients, 0, -1, -1, false, &mutex};
 
-    bt_hid_ctx *bt_ctx = bt_hid_init();
+    pthread_mutex_init(&mutex, NULL);
     
-    str2ba("28:37:37:35:9f:8c", &keyboardAddress);
-    str2ba("1C:36:BB:0D:E0:41", &mouseAddress);
+    pthread_create(&bt_thread, NULL, bt_loop, &ctx);
+    pthread_create(&usb_thread, NULL, usb_loop, &ctx);
 
-    if (bt_ctx != NULL)
-    {
-        bt_hid_register_callback(bt_ctx, bt_callback, &ctx);
-        bt_hid_register_control_callback(bt_ctx, bt_control_callback, &ctx);
-        bt_hid_main_loop(bt_ctx);
-    }
-    else
-    {
-        printf("Can't bind with bluetooth PSM\n");
-    }
+    pthread_join(bt_thread, NULL);
+    pthread_join(usb_thread, NULL);
+
+    close_client_connection(&ctx);
 
     return 0;
 }
-
