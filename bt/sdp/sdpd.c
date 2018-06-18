@@ -4,7 +4,7 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <endian.h>
-#include "../bt_utils.h"
+#include "../utils/bt_utils.h"
 
 #ifndef __packed
 #define __packed __attribute__((packed))
@@ -277,10 +277,18 @@ void respondServiceSearchAttributeRequest(int socket, const char *input)
     struct SDP_service_search_attr_request *request =
                 (struct SDP_service_search_attr_request*)input;
 
+    // In case of UUID of not supported length
+    if (request->uuid_data_type != 0x19)
+    {
+        request->uuid = 0;
+        request->continuation_state = 0;
+        request->continuation_state_data = 0;
+    }
 
     switch(request->uuid)
     {
         case PNP_UUID:
+        default:
         {
             record = PNP_RECORD;
             record_size = sizeof(PNP_RECORD) - 1;
@@ -294,8 +302,12 @@ void respondServiceSearchAttributeRequest(int socket, const char *input)
         }
         break;
 
-        default:
-            break;
+        case HID_UUID:
+        {
+            record = "\x36\x02\x9d" HID_RECORD;
+            record_size = sizeof(HID_RECORD) + 3 - 1;
+        }
+        break;
     }
 
     sendExtendedResponse(socket,

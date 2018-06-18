@@ -109,7 +109,7 @@ int main()
         }
 
         mgmt_api_set_name(ctx, "Juanito");
-        mgmt_api_set_class(ctx, 5, 0);
+        mgmt_api_set_class(ctx, 5, 0b01000000);
         mgmt_api_set_power(ctx, true);
         mgmt_api_set_connectable(ctx, true);
         mgmt_api_set_ssp(ctx, true);
