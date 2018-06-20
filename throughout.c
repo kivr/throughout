@@ -36,13 +36,13 @@ static pthread_mutex_t mutex;
 static void check_for_control_command(int control_socket)
 {
     //struct timeval tv;
-    unsigned char input[32];
+    unsigned char input[] = {0};
     unsigned char output[] = {0};
     
-    //tv.tv_sec = 1;
-    //tv.tv_usec = 0;
-    //setsockopt(control_socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv,
-    //           sizeof(tv));
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+    setsockopt(control_socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv,
+               sizeof(tv));
 
     if (recv(control_socket, input, sizeof(input), 0) > 0)
     {
@@ -204,11 +204,18 @@ int main(int argc, char *argv[])
     pthread_t bt_thread, usb_thread;
     pthread_mutex_t mutex;
 
-    const char *clients[] = {"6c:40:08:a5:02:5d", NULL};
+    const char *clients[] = {"6c:40:08:a5:02:5d", "60:BE:B5:30:61:AB", NULL};
     tgot_ctx ctx = {clients, 0, -1, -1, false, &mutex};
 
-    send_to_client(&ctx, "\xa1\x01\x58\x00\x00\x00\x00\x00", 8);
-    sleep(10);
+    pthread_mutex_init(&mutex, NULL);
+    
+    pthread_create(&bt_thread, NULL, bt_loop, &ctx);
+    pthread_create(&usb_thread, NULL, usb_loop, &ctx);
+
+    pthread_join(bt_thread, NULL);
+    pthread_join(usb_thread, NULL);
+
+    close_client_connection(&ctx);
 
     return 0;
 }
