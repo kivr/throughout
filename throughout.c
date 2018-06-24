@@ -35,7 +35,7 @@ static pthread_mutex_t mutex;
 
 static void check_for_control_command(int control_socket)
 {
-    //struct timeval tv;
+    struct timeval tv;
     unsigned char input[] = {0};
     unsigned char output[] = {0};
     
