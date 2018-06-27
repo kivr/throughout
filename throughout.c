@@ -19,6 +19,11 @@
 #define SWITCH_SEQUENCE "\xa1\x01\x22\x00\x00\x00\x00\x00\x00\x00"
 #define KEY_UP_SEQUENCE "\xa1\x01\x00\x00\x00\x00\x00\x00\x00\x00"
 
+#ifdef APPLE_KEYBOARD
+    #define FN_SEQUENCE "\xa1\x11\x10"
+    #define FN_KEY_UP_SEQUENCE "\xa1\x11\x00"
+#endif
+
 struct _tgot_ctx
 {
     const char **clients;
@@ -27,6 +32,9 @@ struct _tgot_ctx
     int interrupt_socket;
     bool connected;
     pthread_mutex_t *mutex;
+#ifdef APPLE_KEYBOARD
+    bool fnOn;
+#endif
 };
 
 typedef struct _tgot_ctx tgot_ctx;
@@ -35,15 +43,9 @@ static pthread_mutex_t mutex;
 
 static void check_for_control_command(int control_socket)
 {
-    struct timeval tv;
     unsigned char input[] = {0};
     unsigned char output[] = {0};
     
-    tv.tv_sec = 1;
-    tv.tv_usec = 0;
-    setsockopt(control_socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv,
-               sizeof(tv));
-
     if (recv(control_socket, input, sizeof(input), 0) > 0)
     {
         write(control_socket, output, sizeof(output));
@@ -124,7 +126,7 @@ static void send_to_client(tgot_ctx *ctx, const char *input, int size)
         // Wait for connection 
         loop_until_connected(ctx);
 
-        result = write(ctx->interrupt_socket, input, size);
+        result = send(ctx->interrupt_socket, input, size, 0);
 
         if (result == -1)
         {
@@ -166,6 +168,54 @@ static void *usb_loop(void *data)
     return NULL;
 }
 
+#ifdef APPLE_KEYBOARD
+static int applyFnTransform(char *input, int bytesRead)
+{
+    int result = bytesRead;
+
+    if (bytesRead > 4)
+    { 
+        switch (input[4])
+        {
+            case 0x2a: // Backspace
+            {
+                input[4] = 0x4c; // Delete
+            }
+            break;
+            
+            case 0x50: // Left arrow
+            {
+                input[4] = 0x4a; // Home
+            }
+            break;
+            
+            case 0x52: // Up arrow
+            {
+                input[4] = 0x4b; // PgUp
+            }
+            break;
+            
+            case 0x4f: // Right arrow
+            {
+                input[4] = 0x4d; // End
+            }
+            break;
+            
+            case 0x51: // Down arrow
+            {
+                input[4] = 0x4e; // PgDown
+            }
+            break;
+
+            default:
+                break;
+        }
+    }
+
+    return result;
+}
+#endif
+
 static void *bt_loop(void *data)
 {
     tgot_ctx *p_tgot_ctx = (tgot_ctx*)data;
@@ -190,6 +240,22 @@ static void *bt_loop(void *data)
             {
                 switch_current_client(p_tgot_ctx);
             }
+
+#ifdef APPLE_KEYBOARD
+            if (strncmp(input, FN_SEQUENCE, bytesRead) == 0)
+            {
+                p_tgot_ctx->fnOn = true;
+            }
+            else if (strncmp(input, FN_KEY_UP_SEQUENCE, bytesRead) == 0)
+            {
+                p_tgot_ctx->fnOn = false;
+            }
+
+            if (p_tgot_ctx->fnOn)
+            {
+                bytesRead = applyFnTransform(input, bytesRead);
+            }
+#endif
 
             send_to_client(p_tgot_ctx, input, bytesRead);
             pthread_mutex_unlock(p_tgot_ctx->mutex);
