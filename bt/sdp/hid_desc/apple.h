@@ -110,71 +110,40 @@
     "\x95\x02"          /*   Report Count (2)*/ \
     "\xB1\x01"          /*   Feature (Const,Array,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)*/ \
     "\xC0"              /* End Collection*/ \
-    "\x05\x01"        /* Usage Page (Generic Desktop Ctrls)*/ \
-    "\x09\x02"        /* Usage (Mouse)*/ \
-    "\xA1\x01"        /* Collection (Application)*/ \
-    "\x85\x14"        /*   Report ID (20)*/ \
-    "\x05\x09"        /*   Usage Page (Button)*/ \
-    "\x19\x01"        /*   Usage Minimum (0x01)*/ \
-    "\x29\x02"        /*   Usage Maximum (0x02)*/ \
-    "\x15\x00"        /*   Logical Minimum (0)*/ \
-    "\x25\x01"        /*   Logical Maximum (1)*/ \
-    "\x95\x02"        /*   Report Count (2)*/ \
-    "\x75\x01"        /*   Report Size (1)*/ \
-    "\x81\x02"        /*   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)*/ \
-    "\x95\x01"        /*   Report Count (1)*/ \
-    "\x75\x06"        /*   Report Size (6)*/ \
-    "\x81\x03"        /*   Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)*/ \
-    "\x05\x01"        /*   Usage Page (Generic Desktop Ctrls)*/ \
-    "\x09\x01"        /*   Usage (Pointer)*/ \
-    "\xA1\x00"        /*   Collection (Physical)*/ \
-    "\x16\x01\xF8"    /*     Logical Minimum (-2047)*/ \
-    "\x26\xFF\x07"    /*     Logical Maximum (2047)*/ \
-    "\x36\x01\xFB"    /*     Physical Minimum (-1279)*/ \
-    "\x46\xFF\x04"    /*     Physical Maximum (1279)*/ \
-    "\x65\x13"        /*     Unit (System: English Linear, Length: Centimeter)*/ \
-    "\x55\x0D"        /*     Unit Exponent (-3)*/ \
-    "\x09\x30"        /*     Usage (X)*/ \
-    "\x09\x31"        /*     Usage (Y)*/ \
-    "\x75\x10"        /*     Report Size (16)*/ \
-    "\x95\x02"        /*     Report Count (2)*/ \
-    "\x81\x06"        /*     Input (Data,Var,Rel,No Wrap,Linear,Preferred State,No Null Position)*/ \
-    "\x75\x08"        /*     Report Size (8)*/ \
-    "\x95\x02"        /*     Report Count (2)*/ \
-    "\x81\x01"        /*     Input (Const,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)*/ \
-    "\xC0"            /*   End Collection*/ \
-    "\x06\x02\xFF"    /*   Usage Page (Vendor Defined 0xFF02)*/ \
-    "\x09\x55"        /*   Usage (0x55)*/ \
-    "\x85\x55"        /*   Report ID (85)*/ \
-    "\x15\x00"        /*   Logical Minimum (0)*/ \
-    "\x26\xFF\x00"    /*   Logical Maximum (255)*/ \
-    "\x75\x08"        /*   Report Size (8)*/ \
-    "\x95\x40"        /*   Report Count (64)*/ \
-    "\xB1\xA2"        /*   Feature (Data,Var,Abs,No Wrap,Linear,No Preferred State,No Null Position,Volatile)*/ \
-    "\xC0"            /* End Collection*/ \
-    "\x06\x00\xFF"    /* Usage Page (Vendor Defined 0xFF00)*/ \
-    "\x09\x14"        /* Usage (0x14)*/ \
-    "\xA1\x01"        /* Collection (Application)*/ \
-    "\x85\x90"        /*   Report ID (-112)*/ \
-    "\x05\x84"        /*   Usage Page (Power Pages)*/ \
-    "\x75\x01"        /*   Report Size (1)*/ \
-    "\x95\x03"        /*   Report Count (3)*/ \
-    "\x15\x00"        /*   Logical Minimum (0)*/ \
-    "\x25\x01"        /*   Logical Maximum (1)*/ \
-    "\x09\x61"        /*   Usage (0x61)*/ \
-    "\x05\x85"        /*   Usage Page (Power Pages)*/ \
-    "\x09\x44"        /*   Usage (0x44)*/ \
-    "\x09\x46"        /*   Usage (0x46)*/ \
-    "\x81\x02"        /*   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)*/ \
-    "\x95\x05"        /*   Report Count (5)*/ \
-    "\x81\x01"        /*   Input (Const,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)*/ \
-    "\x75\x08"        /*   Report Size (8)*/ \
-    "\x95\x01"        /*   Report Count (1)*/ \
-    "\x15\x00"        /*   Logical Minimum (0)*/ \
-    "\x26\xFF\x00"    /*   Logical Maximum (255)*/ \
-    "\x09\x65"        /*   Usage (0x65)*/ \
-    "\x81\x02"        /*   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)*/ \
-    "\xC0"            /* End Collection*/
+    "\x05\x01"     /* Usage Page (Generic Desktop Ctrls)*/ \
+    "\x09\x02"     /* Usage (Mouse)*/ \
+    "\xA1\x01"     /* Collection (Application)*/ \
+    "\x85\x14"     /*   Report ID (20)*/ \
+    "\x09\x01"     /*   Usage (Pointer)*/ \
+    "\xA1\x00"     /*   Collection (Physical)*/ \
+    "\x05\x09"     /*     Usage Page (Button)*/ \
+    "\x19\x01"     /*     Usage Minimum (0x01)*/ \
+    "\x29\x10"     /*     Usage Maximum (0x10)*/ \
+    "\x15\x00"     /*     Logical Minimum (0)*/ \
+    "\x25\x01"     /*     Logical Maximum (1)*/ \
+    "\x95\x10"     /*     Report Count (16)*/ \
+    "\x75\x01"     /*     Report Size (1)*/ \
+    "\x81\x02"     /*     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)*/ \
+    "\x05\x01"     /*     Usage Page (Generic Desktop Ctrls)*/ \
+    "\x16\x01\x80" /*     Logical Minimum (-32767)*/ \
+    "\x26\xFF\x7F" /*     Logical Maximum (32767)*/ \
+    "\x75\x10"     /*     Report Size (16)*/ \
+    "\x95\x02"     /*     Report Count (2)*/ \
+    "\x09\x30"     /*     Usage (X)*/ \
+    "\x09\x31"     /*     Usage (Y)*/ \
+    "\x81\x06"     /*     Input (Data,Var,Rel,No Wrap,Linear,Preferred State,No Null Position)*/ \
+    "\x15\x81"     /*     Logical Minimum (-127)*/ \
+    "\x25\x7F"     /*     Logical Maximum (127)*/ \
+    "\x75\x08"     /*     Report Size (8)*/ \
+    "\x95\x01"     /*     Report Count (1)*/ \
+    "\x09\x38"     /*     Usage (Wheel)*/ \
+    "\x81\x06"     /*     Input (Data,Var,Rel,No Wrap,Linear,Preferred State,No Null Position)*/ \
+    "\x05\x0C"     /*     Usage Page (Consumer)*/ \
+    "\x0A\x38\x02" /*     Usage (AC Pan)*/ \
+    "\x95\x01"     /*     Report Count (1)*/ \
+    "\x81\x06"     /*     Input (Data,Var,Rel,No Wrap,Linear,Preferred State,No Null Position)*/ \
+    "\xC0"         /*   End Collection*/ \
+    "\xC0"         /* End Collection*/
 
-// 359 bytes
+// 293 bytes
 
