@@ -156,6 +156,13 @@ static void respondServiceSearchRequest(int socket, const char *input)
             record_size = sizeof(HID_SERVICE_RECORD) - 1;
         }
         break;
+        
+        case PNP_UUID:
+        {
+            record = PNP_SERVICE_RECORD;
+            record_size = sizeof(PNP_SERVICE_RECORD) - 1;
+        }
+        break;
 
         default:
         {
@@ -198,6 +205,13 @@ void respondServiceAttributeRequest(int socket, const char *input)
         }
         break;
         
+        case PNP_SERVICE_RECORD_HANDLE_INT:
+        {
+            record = PNP_ATT_RECORD;
+            record_size = sizeof(PNP_ATT_RECORD) - 1;
+        }
+        break;
+        
         default:
             break;
     }
@@ -227,10 +241,23 @@ void respondServiceSearchAttributeRequest(int socket, const char *input)
     switch(request->uuid)
     {
         case L2CAP_UUID:
+        {
+            record = L2CAP_SSA_RECORD;
+            record_size = sizeof(L2CAP_SSA_RECORD) - 1;
+        }
+        break;
+        
         case HID_UUID:
         {
             record = HID_SSA_RECORD;
             record_size = sizeof(HID_SSA_RECORD) - 1;
+        }
+        break;
+        
+        case PNP_UUID:
+        {
+            record = PNP_SSA_RECORD;
+            record_size = sizeof(PNP_SSA_RECORD) - 1;
         }
         break;
         

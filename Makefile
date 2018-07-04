@@ -22,6 +22,8 @@ sdpd: bt/sdp/sdpd
 
 .PHONY : clean-sdpd
 clean-sdpd:
+	rm -f bt/utils/bt_utils.o
+	rm -f bt/sdp/sdpd.o
 	rm -f bt/sdp/sdpd
 
 .PHONY : clean-config
