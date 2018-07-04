@@ -76,6 +76,17 @@ static void updateClient(bt_hid_ctx *ctx, bdaddr_t *addr, int clientSocket,
         client->interrupt = clientSocket;
     }
 
+    // Call control callback when both channels are connected
+    if (!client->controlCallbackCalled
+        && ctx->controlCallback != NULL
+        && client->control != -1
+        && client->interrupt != -1)
+    {
+        client->controlCallbackCalled = true;
+        ctx->controlCallback(client->control, &client->address,
+                             ctx->controlCallbackData);
+    }
+    
     ctx->maxFD = clientSocket;
     FD_SET(clientSocket, &ctx->readSet);
 }
@@ -115,16 +126,6 @@ static void checkClients(bt_hid_ctx *ctx, fd_set *activeSet)
             bytesRead = recv(client->interrupt, buffer, BUFFER_SIZE, 0);
             ctx->callback(buffer, bytesRead, &client->address,
                           INTERRUPT_CHANNEL, ctx->callbackData);
-
-            // Call control callback the first time interrupt data is sent
-            if (!client->controlCallbackCalled
-                && ctx->controlCallback != NULL
-                && client->control != -1)
-            {
-                client->controlCallbackCalled = true;
-                ctx->controlCallback(client->control, &client->address,
-                                     ctx->controlCallbackData);
-            }
         }
     }
 }
